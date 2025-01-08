@@ -1,4 +1,6 @@
 extern crate image;
+use std::env;
+
 use display::mainloop::start_scene;
 use parsing::get_scene;
 
@@ -12,7 +14,7 @@ pub mod bvh;
 
 const USING_BVH: bool = true;
 const SCENE_FOLDER: &str = "scenes";
-const SCENE: &str = "plane_empty";
+const SCENE: &str = "metalrough";
 const SKYBOX_TEXTURE: &str = "skybox_night.jpg";
 
 /************* Camera **************/
@@ -71,17 +73,22 @@ const ELEMENT: &str = "element";
 
 const PICKER_LINE_HEIGHT: f64 = 30.0;
 pub fn run() {
-    let path = String::from(format!("{}/{}.json", SCENE_FOLDER, SCENE));
-    if path != "" {
-        let mut scene = get_scene(&path);
-        scene.load_texture(SKYBOX_TEXTURE);
-        
-        if DISPLAY_WIREFRAME {
-            scene.add_wireframes();
-        }
-        scene.update_bvh();
-        start_scene(scene);
+    let args: Vec<String> = env::args().collect();
+
+    let path: String = if args.len() > 0 {
+        args[1].clone()
+    } else {
+        format!("{}/{}.json", SCENE_FOLDER, SCENE)
+    };
+
+    let mut scene = get_scene(&path);
+    scene.load_texture(SKYBOX_TEXTURE);
+    
+    if DISPLAY_WIREFRAME {
+        scene.add_wireframes();
     }
+    scene.update_bvh();
+    start_scene(scene);
 }
 
 pub fn error(msg: &str) {
