@@ -2,15 +2,15 @@ use std::{
     collections::HashMap,
     f64::consts::PI,
     io::Write,
-    ops::Add
+    ops::Add, process::exit
 };
 use crate::{
     error, model::{
         materials::{
             color::Color,
-		    diffuse::Diffuse,
-		    material::Material,
-		    texture::{Texture, TextureType}
+            diffuse::Diffuse,
+            material::Material,
+            texture::{Texture, TextureType}
         }, maths::vec3::Vec3, objects::{
             camera::Camera, light::{AmbientLight, AnyLight, ParallelLight, PointLight}
         }, scene::Scene, shapes::{ 
@@ -346,7 +346,11 @@ pub fn get_scene(scene_file: &String) -> Scene {
 }
 
 fn parse_json(scene_file: String) -> Vec<HashMap<String, String>> {
-    let content = std::fs::read_to_string(scene_file).expect("Error reading file");
+    let content = std::fs::read_to_string(scene_file).unwrap_or_else(|err| {
+        error(&format!("Reading scene file failed: {}", err.to_string()));
+        exit(1);
+    });
+    
     let content = content.replace('\t', "    ");
     let mut objects: Vec<HashMap<String, String>> = Vec::new();
     let mut i = 0;
@@ -354,8 +358,15 @@ fn parse_json(scene_file: String) -> Vec<HashMap<String, String>> {
     while i < content.len() && content[i..].find('{') != None {
         let mut object: HashMap<String, String> = HashMap::new();
         let remaining = &content[i..];
-        let start = remaining.find('{').expect("No opening bracket found");
-        let end = remaining.find("\n    }").expect("No closing bracket found") + 6;
+        
+        let start = remaining.find('{').unwrap_or_else(||{
+            error("Failed to parse json: No opening bracket found");
+            exit(1);
+        });
+        let end = remaining.find("\n    }").unwrap_or_else(||{
+            error("Failed to parse json: No closing bracket found");
+            exit(1);
+        }) + 6;
         let object_str = &remaining[start..end];
         i += end;
 
@@ -364,12 +375,18 @@ fn parse_json(scene_file: String) -> Vec<HashMap<String, String>> {
             let mut prop = prop.split(": ");
             let key: String = prop
                 .next()
-                .expect("Error parsing key")
+                .unwrap_or_else(||{
+                    error("Failed to parse json: Error parsing key");
+                    exit(1);
+                })
                 .trim_matches(['"', ' ', '\n', '{', '}'])
                 .to_string();
             let value: String = prop
                 .next()
-                .expect("Error parsing key")
+                .unwrap_or_else(||{
+                    error("Failed to parse json: Error parsing key");
+                    exit(1);
+                })
                 .trim_matches(['{', '"', ' ', '\n', '}'])
                 .to_string();
 
@@ -402,24 +419,25 @@ fn get_color(object: &HashMap<String, String>) -> Option<Color> {
     if !object.contains_key("color_r") || !object.contains_key("color_g") || !object.contains_key("color_b"){
         return None;
     }
-    // Testing if the color is in the format [r, g, b]
-    let rgb_str = [&object["color_r"], &object["color_g"], &object["color_b"]];
-
-    for i in 0..3 {
-        if rgb_str[i].parse::<u8>().is_err() {
-            error("Color must be in the format [r, g, b] where r, g, b are integers.");
-        }
-    }
 
     let r = object["color_r"]
         .parse::<u8>()
-        .expect("Error parsing color");
+        .unwrap_or_else(|err|{
+            error(&format!("Parsing color failed: {}", err.to_string()));
+            exit(1);
+        });
     let g = object["color_g"]
         .parse::<u8>()
-        .expect("Error parsing color");
+        .unwrap_or_else(|err|{
+            error(&format!("Parsing color failed: {}", err.to_string()));
+            exit(1);
+        });
     let b = object["color_b"]
         .parse::<u8>()
-        .expect("Error parsing color");
+        .unwrap_or_else(|err|{
+            error(&format!("Parsing color failed: {}", err.to_string()));
+            exit(1);
+        });
 
     return Some(Color::new(
         r as f64 / 255.,
@@ -434,7 +452,10 @@ fn get_coordinates_value(object: &HashMap<String, String>, key: &str) -> Vec3 {
 
 fn get_coordinates_value_or(object: &HashMap<String, String>, key: &str, default: Option<Vec3>) -> Vec3 {
     if !object.contains_key(&(key.to_owned() + "_x")) && !object.contains_key(&(key.to_owned() + "_y")) && !object.contains_key(&(key.to_owned() + "_z")) {
-        return default.expect(&format!("{} must be provided.", key));
+        return default.unwrap_or_else(|| {
+            error(&format!("{} must be provided.", key));
+            exit(1);
+        })
     }
     // Testing if the position is in the format [x, y, z]
     let pos_str = [
@@ -474,7 +495,7 @@ fn get_material(
     let emissive_string = object.get("emissive").unwrap_or(&default);
     let normal_string = object.get("normal").unwrap_or(&default);
     let opacity_string = object.get("opacity").unwrap_or(&default);
-	let displacement_string = object.get("displacement").unwrap_or(&default);
+    let displacement_string = object.get("displacement").unwrap_or(&default);
     let color_texture = match object.get("color") {
         Some(path) => Texture::Texture(path.clone(), TextureType::Color),
         None => match color_opt {
@@ -497,7 +518,7 @@ fn get_material(
         Texture::from_float_litteral(transparency_string, 0.),
         Texture::from_vector(normal_string, Vec3::new(0., 0., 1.)),
         Texture::from_float_litteral(opacity_string, 1.),
-		Texture::from_float_litteral(displacement_string, 0.),
+        Texture::from_float_litteral(displacement_string, 0.),
         refraction,
     ))
 }
